@@ -3,8 +3,11 @@ import { computed, ref } from 'vue';
 import JsBarcode from 'jsbarcode';
 import addDays from 'date-fns/addDays';
 const identifierPrefix = ref(0);
-const referenceLenght = ref(8);
-const referenceValue = ref('000000000');
+/* const referenceLenght = ref(8);
+const referenceValue = ref('000000000'); */
+const noClient = ref(0);
+const noCredit = ref(0);
+const noPayment = ref(0);
 const amountValue = ref(0);
 const amountLenght = ref(8);
 const codeDaysLifetime = ref(1);
@@ -50,9 +53,6 @@ const getDate = (toCode = false) => {
   return toCode ? expiredDate.toISOString().slice(0, 10).replace(/-/g, '') : expiredDate.toLocaleDateString();
 }
 
-const getCompleteReference = (reference) => {
-  return reference.padStart(referenceLenght, '0');
-}
 
 const getformatedAmount = (amount) => {
   const amountString = amount.toString();
@@ -66,7 +66,7 @@ const getformatedAmount = (amount) => {
 }
 
 const getBarCode = (fullCode = false) => {
-  const code = identifierPrefix.value + getCompleteReference(referenceValue.value) + getDate(true) + getformatedAmount(amountValue.value);
+  const code = identifierPrefix.value + encodeInput(noClient.value, noCredit.value, noPayment.value) + getDate(true) + getformatedAmount(amountValue.value);
   let sum = 0;
   let isEven = true;
 
@@ -88,19 +88,36 @@ const getBarCode = (fullCode = false) => {
   return fullCode ? code + digit : digit;
 }
 
-const overLength = computed(() => {
-  const code = getBarCode(true);
-  const count = referenceLenght.value + amountLenght.value + 2 + 8 + 1;
-  return code.length > count ? code.length : count
-});
-const belowLength = computed(() => {
-  const code = getBarCode(true);
-  const count = referenceLenght.value + amountLenght.value + 2 + 8 + 1;
-  return code.length < count ? code.length : count
-});
+
+function encodeInput(noClient, noCredit, noPayment) {
+  const noClientStr = String(Number(noClient)).padStart(5, '0');
+  const noCreditStr = String(Number(noCredit)).padStart(6, '0');
+  const noPaymentStr = String(Number(noPayment)).padStart(3, '0');
+  
+  return noClientStr + noCreditStr + noPaymentStr;
+}
+
+function decodeInput(cadena) {
+  const noClient = Number(cadena.substring(0, 5));
+  const noCredit = Number(cadena.substring(5, 11));
+  const noPayment = Number(cadena.substring(11, 14));
+  
+  return { noClient, noCredit, noPayment };
+}
+
+
+const isActive = ref(false);
 </script>
 
 <template>
+
+  <sui-button
+  toggle
+  content="Vote"
+  :active="isActive"
+  @click="isActive = !isActive"
+  />
+
   <div class="flex items-center w-full h-screen">
     <v-card class="mx-auto" width="800" height="800">
       <v-card-title primary-title>
@@ -130,26 +147,12 @@ const belowLength = computed(() => {
           <v-row>
             <v-col cols="12">
               <div class="flex gap-3 space-y-2">
-                <div class="mt-3">
-                  <v-text-field @input="generateBarCode" v-model="referenceValue" type="number" label="Referencia"
-                    counter :maxlength="referenceLenght">
-                    <template v-slot:append>
-                      <v-btn variant="text">
-                        ?
-                        <v-tooltip activator="parent" location="top">Identificador del cliente. Se rellena con ceros las
-                          posiciones faltantes.</v-tooltip>
-                      </v-btn>
-                    </template>
-
-                  </v-text-field>
-                </div>
-                <v-slider label="Longitud" v-model="referenceLenght" :max="12" :min="1" class="align-center" step="1"
-                  hide-details>
-                  <template v-slot:append>
-                    <v-text-field v-model="referenceLenght" density="compact" style="width: 70px" type="number"
-                      hide-details single-line></v-text-field>
-                  </template>
-                </v-slider>
+                <v-text-field @input="generateBarCode" v-model="noClient" type="number" :maxlength="5" counter
+                  label="No. de cliente"></v-text-field>
+                <v-text-field @input="generateBarCode" v-model="noCredit" type="number" :maxlength="6" counter
+                  label="No. de credito"></v-text-field>
+                <v-text-field @input="generateBarCode" v-model="noPayment" type="number" :maxlength="3" counter
+                  label="No. de pago"></v-text-field>
               </div>
             </v-col>
             <!--      {{ overLength }} -->
@@ -177,7 +180,7 @@ const belowLength = computed(() => {
             <v-col>
               <div class="">
                 <v-text-field @input="generateBarCode" v-model="amountValue" type="number" label="Monto" prefix="$"
-                  :maxlength="amountLenght" counter>
+                  :maxlength="7" counter>
                   <template v-slot:append>
                     <v-btn variant="text">
                       ?
@@ -189,13 +192,6 @@ const belowLength = computed(() => {
 
                 </v-text-field>
               </div>
-              <v-slider label="Longitud" v-model="amountLenght" :max="12" :min="1" class="align-center" step="1"
-                hide-details>
-                <template v-slot:append>
-                  <v-text-field v-model="amountLenght" density="compact" style="width: 70px" type="number" hide-details
-                    single-line></v-text-field>
-                </template>
-              </v-slider>
             </v-col>
           </v-row>
           <v-row>
@@ -217,10 +213,6 @@ const belowLength = computed(() => {
         </v-container>
       </v-card-text>
     </v-card>
-    <v-alert v-if="overLength > 32" color="error" icon="$error" title="Longitud excedida"
-      text="La longitud del código no puede superar los 32 digitos"></v-alert>
-    <v-alert v-if="belowLength < 18" color="error" icon="$error" title="Longitud insuficiente"
-      text="La longitud del código debe ser de al menos 18 digitos"></v-alert>
   </div>
 
 </template>
